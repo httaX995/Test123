@@ -21,7 +21,7 @@ const { sms, downloadMediaMessage } = require('./lib/msg');
 const { cmd } = require('./command');
 
 const prefix = '.';
-const ownerNumber = ['94704638406']; // ඔයාගේ no එක දාන්න 🙄
+const ownerNumber = ['94779510013']; // ඔයාගේ no එක දාන්න 🙄
 
 async function connectToWhatsApp() {
     
@@ -86,11 +86,11 @@ async function connectToWhatsApp() {
             console.log('Plugins installed successful ✅');
             console.log('🙃 Starting... ');
             console.log('👆 Running... ');
-           conn.newsletterFollow("120363183696686259@newsletter") // මේ jid එක මාරු කරන්න එපා මැනිකලාහ් 😇. පහල එකට ඔයාගෙ එක දාන්න
-           conn.newsletterFollow("120363183696686259@newsletter") // මේකට ඔයාගේ channel jid එක දාන්න
+           conn.newsletterFollow("120363382687971134@newsletter") // මේ jid එක මාරු කරන්න එපා මැනිකලාහ් 😇. පහල එකට ඔයාගෙ එක දාන්න
+           conn.newsletterFollow("120363382687971134@newsletter") // මේකට ඔයාගේ channel jid එක දාන්න
            console.log(" CHANNEL FOLLOW ✅")
            let up = `Queen UDMODz connected successful ✅\n\nPREFIX: ${prefix}`; // වෙනස් කරන්නහ්
-           conn.sendMessage("94704638406@s.whatsapp.net", { image: { url: `https://i.ibb.co/5xzWmSxn/20250224-094453.png` }, caption: up }) // වෙනස් කරන්නහ්
+           conn.sendMessage("94779510013@s.whatsapp.net", { image: { url: `https://i.ibb.co/5xzWmSxn/20250224-094453.png` }, caption: up }) // වෙනස් කරන්නහ්
             console.log('💙 I`m online now hutto... ');
             fs.readdirSync("./plugins/").forEach((plugin) => {
                 if (path.extname(plugin).toLowerCase() == ".js") {
@@ -157,10 +157,10 @@ const reply = (teks) => {
         text: teks,
         contextInfo: {
             forwardingScore: 0,
-            isForwarded: true,
+            isForwarded: false,
             externalAdReply: {
             // මේ ටිකම හදාගන්න 
-                title: `𝗤𝗨𝗘𝗘𝗡 𝗨𝗗𝗠𝗢𝗗𝗭`, 
+                title: `𝗖𝗛𝗘𝗧𝗛𝗠𝗜𝗡𝗔`, 
                 body: `The Best Multi Device Whatsapp Bot.`,
                 thumbnailUrl: `https://files.catbox.moe/bf5iea.jpg`,
                 mediaType: 1,
