@@ -1,132 +1,166 @@
-const { cmd } = require('../command');
-const Hiru = require('hirunews-scrap');
-const Esana = require('@sl-code-lords/esana-news');
-const axios = require('axios');
 const config = require('../config');
+const { cmd } = require('../command');
+const axios = require('axios');
 
-let activeGroups = {};
-let lastNewsTitles = {};
+// API LINK
+const apilink = 'https://dizer-adaderana-news-api.vercel.app/news';
 
-async function getLatestNews() {
-    let newsData = [];
-    
-    // Hiru News
-    try {
-        const hiruApi = new Hiru();
-        const hiruNews = await hiruApi.BreakingNews();
-        newsData.push({
-            title: hiruNews.results.title,
-            content: hiruNews.results.news,
-            date: hiruNews.results.date,
-            url: hiruNews.results.newsURL
-        });
-    } catch (err) {
-        console.error(`Error fetching Hiru News: ${err.message}`);
-    }
+// යවපු පුවත් ට්‍රැක් කරන්න
+let sentNews = new Set();
+const newsIntervals = new Map(); // JID එකට interval ට්‍රැක් කරන්න
 
-    
-    return newsData;
-}
-
-// Function to check for and post new news to the group
-async function checkAndPostNews(conn, groupId) {
-    const latestNews = await getLatestNews();
-    latestNews.forEach(async (newsItem) => {
-        if (!lastNewsTitles[groupId]) {
-            lastNewsTitles[groupId] = [];
-        }
-
-        if (!lastNewsTitles[groupId].includes(newsItem.title)) {
-           await conn.sendMessage(from, { 
-                text: `📰 *${newsItem.title}*\n\n${newsItem.content}\n\n📅 ${newsItem.date}\n🔗Read More: ${newsItem.url}\n\n\n> 👨🏻‍💻 ᴍᴀᴅᴇ ʙʏ *ᴄʜᴇᴛʜᴍɪɴᴀ ᴋᴀᴠɪꜱʜᴀɴ*` 
-            });
-            lastNewsTitles[groupId].push(newsItem.title);
-
-            if (lastNewsTitles[groupId].length > 100) {
-                lastNewsTitles[groupId].shift();
-            }
-        }
-    });
-}
-
-
-// Command to activate the general news service in the group
+// Start Derana News Command
 cmd({
     pattern: "startnews",
-    desc: "Enable Sri Lankan news updates in this group",
-    isGroup: true,
-    react: "📰",
+    alias: ["breckingnews"],
+    react: "📑",
+    desc: "අලුත් Derana පුවත් ආපු විගස යවයි, එකම පුවත ආයෙ එන්නේ නැත.",
+    use: ".startderana <jid>",
+    category: "පුවත්",
     filename: __filename
-}, async (conn, mek, m, { from, isGroup, participants }) => {
+},
+async (conn, mek, m, { from, quoted, body, isCmd, command, args, q, isGroup, sender, senderNumber, botNumber2, botNumber, pushname, isMe, isOwner, groupMetadata, groupName, participants, groupAdmins, isBotAdmins, isAdmins, reply }) => {
     try {
-        if (isGroup) {
-            const isAdmin = participants.some(p => p.id === mek.sender && p.admin);
-            const isBotOwner = mek.sender === conn.user.jid;
+        if (!isOwner) return reply("*`මෙම විධානය හිමිකරුට පමණයි`*");
 
-            if (isAdmin || isBotOwner) {
-                if (!activeGroups[from]) {
-                    activeGroups[from] = true;
+        if (!q) return reply("*`JID එකක් දෙන්න, උදා: .startderana 94760698006@s.whatsapp.net හෝ 120363349375266377@newsletter`*");
 
-                    await conn.sendMessage(from, { text: "🇱🇰 Auto 24/7 News Activated.\n\n> 👨🏻‍💻 ᴍᴀᴅᴇ ʙʏ *ᴄʜᴇᴛʜᴍɪɴᴀ ᴋᴀᴠɪꜱʜᴀɴ*" });
+        const targetJid = q.trim();
 
-                    if (!activeGroups['interval']) {
-                        activeGroups['interval'] = setInterval(async () => {
-                            for (const groupId in activeGroups) {
-                                if (activeGroups[groupId] && groupId !== 'interval') {
-                                    await checkAndPostNews(conn, groupId);
-                                }
-                            }
-                        }, 60000); // Check for news every 60 seconds
-                    }
+        // JID එක වලංගු දැයි පරීක්ෂා කිරීම (සියලු ආකෘති සමඟ)
+        const validFormats = ['@s.whatsapp.net', '@g.us', '@newsletter'];
+        let isValid = false;
 
-                } else {
-                    await conn.sendMessage(from, { text: "*✅ 24/7 News Already Activated.*" });
-                }
-            } else {
-                await conn.sendMessage(from, { text: "🚫 This command can only be used by group admins or the bot owner." });
+        for (let format of validFormats) {
+            if (targetJid.includes(format)) {
+                isValid = true;
+                break;
             }
-        } else {
-            await conn.sendMessage(from, { text: "This command can only be used in groups." });
         }
+
+        if (!isValid) {
+            return reply("*`වලංගු JID එකක් නොවේ! WhatsApp JID එකක් භාවිතා කරන්න (උදා: 94760698006@s.whatsapp.net, @g.us හෝ @newsletter)`*");
+        }
+
+        // ඒ JID එකට දැනටමත් interval එකක් තිබෙනවද බලන්න
+        if (newsIntervals.has(targetJid)) {
+            return reply(`මේ JID එකට දැනටමත් පුවත් යැවෙනවා: ${targetJid}`);
+        }
+
+        reply(`අලුත් Derana පුවත් ආපු විගස යැවීම ආරම්භ වෙනවා JID එකට: ${targetJid}! 📑\n> ㋛︎ ᴘᴏᴡᴇʀᴅ ʙʏ  ᴍʀ  ʟᴀᴋꜱɪᴅᴜ ᶜᵒᵈᵉʳ`);
+
+        // Target JID එකට confirmation message යවනවා
+        await conn.sendMessage(targetJid, { 
+            text: `📑 *Derana පුවත් යැවීම ආරම්භ වුණා!* 📑\n> අලුත් පුවත් ආපු විගස ඔබට ලැබෙනවා.*`
+        });
+
+        // අලුත් පුවත් චෙක් කරලා යවන ක්‍රමය
+        const checkAndSendNews = async () => {
+            try {
+                const response = await axios.get(apilink);
+                const newsList = response.data; // Assuming API returns an array of news
+
+                if (!Array.isArray(newsList)) {
+                    console.error("API එකෙන් array එකක් ලැබුණේ නැත:", newsList);
+                    return;
+                }
+
+                // පළමු අලුත් පුවත බලන්න
+                for (let news of newsList) {
+                    const newsId = news.title + news.time; // Unique identifier for news
+                    if (!sentNews.has(newsId)) {
+                        sentNews.add(newsId);
+
+                        const msg = `
+📑 𝐂𝐊 𝐍𝐄𝐖𝐒 24𝐱7 📑
+
+*🏷️ ${news.title || 'නොදන්නා'}*
+*✍🏻* _${news.description || 'නොදන්නා'}_
+*📆* _${news.time || 'නොදන්නා'}_
+*🔗* _${news.new_url || 'නොදන්නා'}_
+
+> 👨🏻‍💻 *ᴄʜᴇᴛʜᴍɪɴᴀ ᴋᴀᴠɪꜱʜᴀɴ*
+                        `;
+
+                        if (news.image) {
+                            await conn.sendMessage(targetJid, { 
+                                image: { url: news.image }, 
+                                caption: msg 
+                            });
+                        } else {
+                            await conn.sendMessage(targetJid, { 
+                                text: msg 
+                            });
+                        }
+
+                        console.log(`අලුත් Derana පුවත යැව්වා: ${news.title} -> ${targetJid}`);
+                        break; // එක වතාවකට එක පුවතක් විතරක් යවන්න
+                    }
+                }
+            } catch (e) {
+                console.error('පුවත් ගැනීමේ දෝෂය:', e);
+            }
+        };
+
+        // සෑම තත්පර 30කට වරක් API චෙක් කරනවා
+        const intervalId = setInterval(checkAndSendNews, 30 * 1000);
+        newsIntervals.set(targetJid, intervalId); // Interval එක store කරනවා
+
     } catch (e) {
-        console.error(`Error in news command: ${e.message}`);
-        await conn.sendMessage(from, { text: "Failed to activate the news service." });
+        console.log(e);
+        reply(`දෝෂයක්: ${e}`);
     }
 });
 
-// stop send news 
+// Stop Derana News Command
 cmd({
     pattern: "stopnews",
-    desc: "Disable Sri Lankan news updates in this group",
-    isGroup: true,
+    alias: ["stopnews3"],
     react: "🛑",
+    desc: "Derana පුවත් යැවීම නවත්වයි",
+    use: ".stopderana <jid>",
+    category: "පුවත්",
     filename: __filename
-}, async (conn, mek, m, { from, isGroup, participants }) => {
+},
+async (conn, mek, m, { from, quoted, body, isCmd, command, args, q, isGroup, sender, senderNumber, botNumber2, botNumber, pushname, isMe, isOwner, groupMetadata, groupName, participants, groupAdmins, isBotAdmins, isAdmins, reply }) => {
     try {
-        if (isGroup) {
-            const isAdmin = participants.some(p => p.id === mek.sender && p.admin);
-            const isBotOwner = mek.sender === conn.user.jid;
+        if (!isOwner) return reply("*`මෙම විධානය හිමිකරුට පමණයි`*");
 
-            if (isAdmin || isBotOwner) {
-                if (activeGroups[from]) {
-                    delete activeGroups[from];
-                    await conn.sendMessage(from, { text: "*🚫 Disable Sri Lankan news updates in this group*" });
+        if (!q) return reply("*`JID එකක් දෙන්න, උදා: .stopderana 94760698006@s.whatsapp.net හෝ 120363349375266377@newsletter`*");
 
-                    if (Object.keys(activeGroups).length === 1 && activeGroups['interval']) {
-                        clearInterval(activeGroups['interval']);
-                        delete activeGroups['interval'];
-                    }
-                } else {
-                    await conn.sendMessage(from, { text: "🛑 24/7 News is not active in this group." });
-                }
-            } else {
-                await conn.sendMessage(from, { text: "🚫 This command can only be used by group admins or the bot owner." });
+        const targetJid = q.trim();
+
+        // JID එක වලංගු දැයි පරීක්ෂා කිරීම (සියලු ආකෘති සමඟ)
+        const validFormats = ['@s.whatsapp.net', '@g.us', '@newsletter'];
+        let isValid = false;
+
+        for (let format of validFormats) {
+            if (targetJid.includes(format)) {
+                isValid = true;
+                break;
             }
-        } else {
-            await conn.sendMessage(from, { text: "This command can only be used in groups." });
         }
+
+        if (!isValid) {
+            return reply("*`වලංගු JID එකක් නොවේ! WhatsApp JID එකක් භාවිතා කරන්න (උදා: 94760698006@s.whatsapp.net, @g.us හෝ @newsletter)`*");
+        }
+
+        if (!newsIntervals.has(targetJid)) {
+            return reply(`මේ JID එකට පුවත් යැවෙන්නේ නැත: ${targetJid}`);
+        }
+
+        clearInterval(newsIntervals.get(targetJid));
+        newsIntervals.delete(targetJid);
+
+        // Target JID එකට stop confirmation message යවනවා
+        await conn.sendMessage(targetJid, { 
+            text: `🛑 *Derana පුවත් යැවීම නැවැත්වුණා!* 🛑\n> තවත් පුවත් එන්නේ නැත.\n> *ᴘᴏᴡᴇʀᴅ ʙʏ  ᴋᴀᴠɪᴅᴜ ʀᴀꜱᴀɴɢᴀ : )*`
+        });
+
+        reply(`Derana පුවත් යැවීම නැවැත්වුවා: ${targetJid}`);
+
     } catch (e) {
-        console.error(`Error in news command: ${e.message}`);
-        await conn.sendMessage(from, { text: "Failed to deactivate the news service." });
+        console.log(e);
+        reply(`දෝෂයක්: ${e}`);
     }
 });
